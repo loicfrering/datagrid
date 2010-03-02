@@ -8,17 +8,16 @@ class Datagrid_Column
 {
     protected $_datagrid;
     protected $_name;
-    protected $_column;
-    protected $_displayedName;
+    protected $_data;
     protected $_title;
-    protected $_renderingTemplate;
-    protected $_renderingFunction;
-    protected $_relation;
+    /*protected $_renderingTemplate;
+    protected $_renderingFunction;*/
     protected $_decorator = array(
         'prepend' => '',
         'append' => '',
     );
     protected $_sortable = true;
+    protected $_sortingField;
     protected $_sorted = false;
     protected $_currentSortedOrder;
     protected $_groupSortedRecords = false;
@@ -43,21 +42,21 @@ class Datagrid_Column
             throw new Exception('Column requires a non empty name');
         }
 
-        if(!isset($this->_displayedName)) {
-            $this->_displayedName = $this->_name;
+        if(!isset($this->_data)) {
+            $this->_data = $this->_name;
         }
         if(!isset($this->_title)) {
             $this->_title = ucfirst($this->_name);
+        }
+        if(!isset($this->_sortingField)) {
+            if(!$this->_hasRenderingFunction($this->getData()) && !$this->_hasRenderingTemplate($this->getData())) {
+                $this->_sortingField = $this->_data;
+            }
         }
     }
     
     public function setOptions(array $options)
     {
-        if (isset($options['relation'])) {
-            $this->setRelation($options['relation']);
-            unset($options['relation']);
-        }
-        
         if (isset($options['decorator'])) {
             $this->setDecorator($options['decorator']);
             unset($options['decorator']);
@@ -95,17 +94,17 @@ class Datagrid_Column
     {
         return $this->_name;
     }
-    
-    public function setDisplayedName($displayedName)
+
+    public function setData($data)
     {
-        $this->_displayedName = $displayedName;
-        
+        $this->_data = $data;
+
         return $this;
     }
 
-    public function getDisplayedName()
+    public function getData()
     {
-        return $this->_displayedName;
+        return $this->_data;
     }
     
     public function setTitle($title)
@@ -154,62 +153,6 @@ class Datagrid_Column
         return $this->_renderingFunction;
     }
 
-    public function setRelation($relation)
-    {
-        $this->_relation = $relation;
-
-        /*$relation = array(
-            'name' => $options['name'],
-            'elementDecorator' => array('prepend' => null, 'append' => null, 'glue' => null)
-        );
-
-        foreach (array_keys($relation) as $key) {
-            if(!empty($options[$key])) {
-                if(is_array($relation[$key])) {
-                    
-                    foreach (array_keys($relation[$key]) as $subkey) {
-                        if(!empty($options[$key][$subkey])) {
-                            $relation[$key][$subkey] = $options[$key][$subkey];
-                        }
-                    }
-                }
-                else {
-                    $relation[$key] = $options[$key];
-                }
-            }
-        }
-        
-        $this->_relation = $relation;*/
-        
-        return $this;
-    }
-
-    public function getRelation()
-    {
-        return $this->_relation;
-    }
-
-    public function hasRelation()
-    {
-        return !empty($this->_relation);
-    }
-
-    public function getRelations($relations)
-    {
-        if($this->hasRelation()) {
-            $relation = $this->_relation;
-            $relationsArray = array($relation->getName());
-            while($relation->hasRelation()) {
-                $relation = $relation->getRelation();
-                $relation = $relations[$relation['name']];
-                $relationsArray[] = $relation->getName();
-            }
-            return $relationsArray;
-        }
-
-        return array();
-    }
-
     public function setDecorator(array $options)
     {
         $decorator = array(
@@ -241,7 +184,18 @@ class Datagrid_Column
 
     public function isSortable()
     {
-        return $this->_sortable;
+        return $this->getSortingField() !== null && $this->_sortable;
+    }
+
+    public function setSortingField($sortingField)
+    {
+        $this->_sortingField = $sortingField;
+        return $this;
+    }
+
+    public function getSortingField()
+    {
+        return $this->_sortingField;
     }
 
     public function isSorted()
@@ -277,9 +231,9 @@ class Datagrid_Column
         return $this->_groupSortedRecords;
     }
     
-    public function recordsEquals($record1, $record2, $relation = null)
+    public function recordsEquals($record1, $record2)
     {
-        return $this->render($record1, $relation) == $this->render($record2, $relation);
+        return $this->render($record1) == $this->render($record2);
     }
 
     // TODO: Delete thic Doctrine specific method once in the adapter
@@ -301,16 +255,17 @@ class Datagrid_Column
 
         if($this->isSortable()) {
             if($this->isSorted() && $this->getCurrentSortOrder() == Datagrid::ASC_ORDER) {
-                $sort = $this->getDisplayedName() . '-' . Datagrid::DESC_ORDER;
+                $sort = $this->getName() . '-' . Datagrid::DESC_ORDER;
                 $title = $translator->_(Datagrid::SORT_DESCENDING_LABEL);
             }
             else {
-                $sort = $this->getDisplayedName();
+                $sort = $this->getName();
                 $title = $translator->_(Datagrid::SORT_ASCENDING_LABEL);
             }
 
             $url = $view->url(array('page' => 1, 'sort' => $sort));
             if(!empty($params)) {
+                unset($params['module'], $params['controller'], $params['action']);
                 $url .= '?'.http_build_query($params);
             }
 
@@ -319,92 +274,96 @@ class Datagrid_Column
         return $view->escape($this->getTitle());
     }
     
-    public function render($record, $relations = null)
+    public function render($item)
     {
-        if($this->hasRelation()) {
-            $relation = $this->_relation;
+        return $this->_render($item, $this->getData());
+    }
 
-            if($relation->hasRelation()) {
-                $relationNames = array($this->_relation->getName());
-                while($relation->hasRelation()) {
-                    $relationNames[] = $relation->getRelation();
-                    $relation = $relations[$relation->getRelation()];
-                }
-
-                $relationRecord = $record;
-                for($i = count($relationNames) - 1; $i >= 0; $i--) {
-                    $relationRecord = $relationRecord[$relationNames[$i]];
-                }
-            }
-            else {
-                $relationRecord = $record[$this->_relation->getName()];
-            }
-
-            return $this->_renderRelation($relationRecord, $relation->getType());
+    protected function _render($item, $data)
+    {
+        if($this->_hasRenderingTemplate($data)) {
+            return $this->_renderTemplate($item, $data);
+        }
+        else if($this->_hasRenderingFunction($data)) {
+            $function = $data;
+            return $this->_renderFunction($item, $function);
         }
         else {
-            if(!empty($this->_renderingTemplate)) {
-                return $this->_renderTemplate($record, $this->_renderingTemplate);
+            $values = $this->_datagrid->getAdapter()->get($item, $data);
+            if(null === $values) {
+                return $data;
             }
-            else if(!empty($this->_renderingFunction)) {
-                return $this->_renderFunction($record, $this->_renderingFunction);
+            else if(is_array($values)) {
+                return implode(' - ', $values);
             }
             else {
-                return $record[$this->_name];
+                return $values;
             }
         }
+    }
+
+    protected function _hasRenderingTemplate($data)
+    {
+        return is_string($data) && strpos($data, '{%') !== false;
+    }
+
+    protected function _hasRenderingFunction($data)
+    {
+        return is_callable($data);
     }
     
-    protected function _renderRelation($relationRecord, $relationType)
+    protected function _renderTemplate($item, $template)
     {
-        if($relationType == Datagrid::ONE_RELATION) {
-            $relationRecord = array($relationRecord);
-        }
-        
-        $out = '';
-        $count = count($relationRecord);
-        if($count) {
-            $out .= $this->_decorator['prepend'];
-            for($i=0; $i<$count-1; $i++) {
-                //$out .= $this->_relation['elementDecorator']['prepend'];
-                if(!empty($this->_renderingTemplate)) {
-                    $out .= $this->_renderTemplate($relationRecord[$i], $this->_renderingTemplate);
+        $adapter = $this->_datagrid->getAdapter();
+
+        // Extract required fields in template
+        preg_match_all('/{%([^}\[\]\<\>]+)}/', $template, $matches);
+        $fields = $matches[1];
+
+        $outputArray = array($template);
+        foreach($fields as $field) {
+            // Get field value or values from adapter
+            $values = $adapter->get($item, $field);
+
+            if(null !== $values) {
+                // Adapter returned multiple values
+                if(is_array($values)) {
+                    if(count($outputArray) == 1 && count($values) > 1) {
+                        $outputArray = array_fill(0, count($values), $outputArray[0]);
+                    }
+                    else if(count($values) > 1 && count($values) != count($outputArray)) {
+                        throw new Datagrid_Exception('Incompatible fields in template value \'' . $template . '\' for column \'' . $this->getName() . '\'.');
+                    }
+                    $i = 0;
+                    foreach($values as $value) {
+                        $outputArray[$i] = str_replace('{%' . $field . '}', $value, $outputArray[$i]);
+                        $i++;
+                    }
                 }
-                else if(!empty($this->_renderingFunction)) {
-                    $out .= $this->_renderFunction($relationRecord[$i], $this->_renderingFunction);
-                }
+                // Adapter returned one value
                 else {
-                    $out .= $relationRecord[$i][$this->_name];
+                    $value = $values;
+                    foreach($outputArray as $key => $out) {
+                        $outputArray[$key] = str_replace('{%' . $field . '}', $value, $out);
+                    }
                 }
-                //$out .= $this->_relation['elementDecorator']['append'].$this->_relation['elementDecorator']['glue'];
             }
-            //$out .= $this->_relation['elementDecorator']['prepend'];
-            if(!empty($this->_renderingTemplate)) {
-                $out .= $this->_renderTemplate($relationRecord[$i], $this->_renderingTemplate);
-            }
-            else if(!empty($this->_renderingFunction)) {
-                $out .= $this->_renderFunction($relationRecord[$i], $this->_renderingFunction);
-            }
-            else {
-                $out .= $relationRecord[$i][$this->_name];
-            }
-            //$out .= $this->_relation['elementDecorator']['append'];
 
-            $out .= $this->_decorator['append'];
         }
-        
-        return $out;
+
+        return implode(' - ', $outputArray);
+
     }
 
-    protected function _renderTemplate($record, $template)
+    protected function _renderFunction($item, $function)
     {
-        $out = $template;
-        $out = preg_replace('/{%([^}\[\]\<\>]+)}/e', "array_key_exists('\\1', \$record) ? \$record['\\1'] : '{%\\1}'", $out);
-        return $out;
-    }
+        $adapter = $this->_datagrid->getAdapter();
+        $get = function($field) use ($item, $adapter) {
+            return $adapter->get($item, $field);
+        };
 
-    protected function _renderFunction($record, $function)
-    {
-        return $function($record);
+        $template = $function($get);
+
+        return $this->_render($item, $template);
     }
 }

@@ -80,13 +80,24 @@ class IndexController extends Zend_Controller_Action
     {
         $datagrid = new Datagrid(new Datagrid_Adapter_Doctrine('User'), $this->_getAllParams());
         $datagrid->setRecordCountPerPage(1)
-                 ->addRelation('Phones')
                  ->addColumn('firstname')
                  ->addColumn('lastname')
-                 ->addColumn('age')
-                 ->addColumn('job')
-                 ->addColumn('number', array(
-                         'relation' => 'Phones'
+                 ->addColumn('age', array(
+                     'data' => 'J\'ai {%age} ans'
+                 ))
+                 ->addColumn('job', array(
+                     'data' => function($get) {
+                        if($get('job') == 'Responsable d\'Application') {
+                            return '{%job} chez AWL';
+                        }
+                        else {
+                            return '{%job} chez Volvo IT';
+                        }
+                     },
+                     'sortingField' => 'job'
+                 ))
+                 ->addColumn('Phones.number', array(
+                     'data' => 'Phones.number'
                          /*'decorator' => array(
                             'prepend' => '<ul>',
                             'append' => '</ul>'
@@ -104,7 +115,13 @@ class IndexController extends Zend_Controller_Action
                         'matchMode' => Datagrid_Filter::MATCH_CONTAINS
                      ))
                  ->addFilter('number', array(
+                     'field' => 'Phones.number'
+                 ))
+                 ->addCommand('edit', array(
+                     'urlOptions' => array('action' => 'edit'),
+                     'params' => array('id')
                  ));
+
 
         $this->view->datagrid = $datagrid;
     }

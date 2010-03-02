@@ -69,14 +69,14 @@ $this->headScript()->captureStart();
             </tr>
         </thead>
         <tbody class="<?= isset($this->currentSortedColumn) && $this->currentSortedColumn->doGroupSortedRecords() ? cycle(array('odd', 'even')) : '' ?>">
-            <?php $previousRecord = $this->paginator->getItem(0, $this->paginator->getCurrentPageNumber()); foreach($this->paginator as $record) : /* à remplacer quand relation ne sera plus un array*/ $relation = isset($this->currentSortedColumn) ? $this->currentSortedColumn->getRelation() : null; ?>
-                <?php if(isset($this->currentSortedColumn) && $this->currentSortedColumn->doGroupSortedRecords() && !$this->currentSortedColumn->recordsEquals($previousRecord, $record, isset($relation['name']) ? $this->relations[$relation['name']] : null)) : ?>
+            <?php $previousRecord = $this->paginator->getItem(0, $this->paginator->getCurrentPageNumber()); foreach($this->paginator as $record) : /* à remplacer quand relation ne sera plus un array*/ ?>
+                <?php if(isset($this->currentSortedColumn) && $this->currentSortedColumn->doGroupSortedRecords() && !$this->currentSortedColumn->recordsEquals($previousRecord, $record)) : ?>
                     </tbody>
                     <tbody class="<?= cycle(array('odd', 'even')) ?>">
                     <?php // We could eventually render a row with column sort value for the group ?>
                 <?php endif; $previousRecord = $record; ?>
                 <tr class="<?= !isset($this->currentSortedColumn) || !$this->currentSortedColumn->doGroupSortedRecords() ? cycle(array('odd', 'even')) : '' ?>">
-                    <?php foreach($this->columns as $column) : $relation = $column->getRelation(); $render = $column->render($record, $column->hasRelation() ? $this->relations : null) ?>
+                    <?php foreach($this->columns as $column) : $render = $column->render($record) ?>
                         <td><?= ($render==0 || !empty($render)) ? $render : '&nbsp;' ?></td>
                     <?php endforeach; ?>
                     <?php foreach($this->commands as $command) : ?>
@@ -86,9 +86,6 @@ $this->headScript()->captureStart();
                 </tr>
             <?php endforeach; ?>
         </tbody>
-        <?php if(!empty($this->form)) : ?>
-            <?= $this->form ?>
-        <?php endif; ?>
     </table>
     <p class="pagination">
         <?= $this->paginationControl($this->paginator, 'Sliding', 'searchPaginationControl.phtml') ?>

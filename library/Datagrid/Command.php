@@ -1,13 +1,14 @@
 <?php
 class Datagrid_Command
 {
+    protected $_datagrid;
     protected $_name;
     protected $_label;
-    protected $_conditionColumn;
+    protected $_conditionField;
     protected $_conditionValue;
     protected $_urlOptions = array();
     protected $_reset = true;
-    protected $_params;
+    protected $_params = array();
 
     public function __construct($spec, $options = null)
     {
@@ -49,6 +50,13 @@ class Datagrid_Command
         }
         return $this;
     }
+
+    public function setDatagrid($datagrid)
+    {
+        $this->_datagrid = $datagrid;
+
+        return $this;
+    }
     
     public function setName($name)
     {
@@ -74,16 +82,16 @@ class Datagrid_Command
         return $this->_label;
     }
     
-    public function setConditionColumn($conditionColumn)
+    public function setConditionField($conditionField)
     {
-        $this->_conditionColumn = $conditionColumn;
+        $this->_conditionField = $conditionField;
 
         return $this;
     }
 
-    public function getConditionColumn()
+    public function getConditionField()
     {
-        return $this->_conditionColumn;
+        return $this->_conditionField;
     }
     
     public function setConditionValue($conditionValue)
@@ -98,16 +106,9 @@ class Datagrid_Command
         return $this->_conditionValue;
     }
     
-    public function setCondition($condition)
-    {
-        $this->_condition = $condition;
-
-        return $this;
-    }
-
     public function hasCondition()
     {
-        return !empty($this->_conditionColumn) && !empty($this->_conditionValue);
+        return !empty($this->_conditionField) && !empty($this->_conditionValue);
     }
     
     public function setUrlOptions(array $urlOptions)
@@ -145,32 +146,37 @@ class Datagrid_Command
         return $this->_params;
     }
     
-    public function render($record, $view)
+    public function render($item)
     {
+        $adapter = $this->_datagrid->getAdapter();
+        $view = $this->_datagrid->getView();
         if($this->hasCondition()) {
-            $conditionColumn = $this->getConditionColumn();
+            $conditionField = $this->getConditionField();
             $conditionValue = $this->getConditionValue();
             
-            if(isset($record[$conditionColumn]) && $record[$conditionColumn] == $conditionValue) {
-                return '<a href="'.$view->url($this->makeUrlOptions($record), null, $this->doReset()).'" title="'.$this->getLabel().'">'.$this->getLabel().'</a>';
+            if($adapter->get($conditionField) == $conditionValue) {
+                return '<a href="'.$view->url($this->makeUrlOptions($item), null, $this->doReset()).'" title="'.$this->getLabel().'">'.$this->getLabel().'</a>';
             }
             else {
                 return $this->getLabel();
             }
         }
         else {
-            return '<a href="'.$view->url($this->makeUrlOptions($record), null, $this->doReset()).'" title="'.$this->getLabel().'">'.$this->getLabel().'</a>';
+            return '<a href="'.$view->url($this->makeUrlOptions($item), null, $this->doReset()).'" title="'.$this->getLabel().'">'.$this->getLabel().'</a>';
         }
     }
     
-    public function makeUrlOptions($record) {
+    public function makeUrlOptions($item)
+    {
+        $adapter = $this->_datagrid->getAdapter();
         $urlOptionsParams = array();
         foreach($this->_params as $key => $param) {
-            if(isset($record[$param])) {
-                $urlOptionsParams[is_integer($key) ? $param : $key] = $record[$param];
+            $value = $adapter->get($item, $param);
+            if(null !== $value && !is_array($value)) {
+                $urlOptionsParams[is_integer($key) ? $param : $key] = $value;
             }
             else {
-                throw new Exception("Unknown column '$param' for record");
+                throw new Datagrid_Exception("Invalid parameter field '$param' for command '{$this->getName()}'");
             }
         }
 

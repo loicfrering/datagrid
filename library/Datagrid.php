@@ -16,8 +16,6 @@ class Datagrid
     /**
      * Datagrid constants
      */
-    const ONE_RELATION  = 'ONE_RELATION';
-    const MANY_RELATION = 'MANY_RELATION';
     const ASC_ORDER     = 'asc';
     const DESC_ORDER    = 'desc';
 
@@ -49,12 +47,6 @@ class Datagrid
      * @var array
      */
     protected $_columns = array();
-    
-    /**
-     * Relations used by the datagrid
-     * @var array
-     */
-    protected $_relations = array();
     
     /**
      * Filters for organizing the datagrid
@@ -136,14 +128,10 @@ class Datagrid
      */
     protected $_translator;
 
+    protected $_translatorDisabled = false;
+
     protected $_noResultLabel;
     
-    /**
-     * A form to be displayed in the Datagrid
-     * @var Zend_Form
-     */
-    protected $_form;
-
     protected $_saveFiltersInSession;
 
 
@@ -230,13 +218,64 @@ class Datagrid
     }
 
     /**
-     * Get the datagrid translator object
+     * Retrieve translator object
      *
-     * @return Zend_Translate
+     * @return Zend_Translate|null
      */
     public function getTranslator()
     {
+        if ($this->isTranslatorDisabled()) {
+            return null;
+        }
+
+        if (null === $this->_translator) {
+            return self::getDefaultTranslator();
+        }
+
         return $this->_translator;
+    }
+
+    /**
+     * Get global default translator object
+     *
+     * @return null|Zend_Translate
+     */
+    public static function getDefaultTranslator()
+    {
+        if (null === self::$_translatorDefault) {
+            require_once 'Zend/Registry.php';
+            if (Zend_Registry::isRegistered('Zend_Translate')) {
+                $translator = Zend_Registry::get('Zend_Translate');
+                if ($translator instanceof Zend_Translate_Adapter) {
+                    return $translator;
+                } elseif ($translator instanceof Zend_Translate) {
+                    return $translator->getAdapter();
+                }
+            }
+        }
+        return self::$_translatorDefault;
+    }
+
+    /**
+     * Indicate whether or not translation should be disabled
+     *
+     * @param  bool $translatorDisabled
+     * @return Zend_Form
+     */
+    public function setDisableTranslator($translatorDisabled)
+    {
+        $this->_translatorDisabled = (bool) $translatorDisabled;
+        return $this;
+    }
+
+    /**
+     * Is translation disabled?
+     *
+     * @return bool
+     */
+    public function isTranslatorDisabled()
+    {
+        return $this->_translatorDisabled;
     }
 
     /**
@@ -281,28 +320,6 @@ class Datagrid
         return $this->_caption;
     }
 
-    /**
-     * Set the where clause
-     *
-     * @param string $where
-     * @return Datagrid
-     */
-    public function setWhere($where)
-    {
-        $this->_where = $where;
-        return $this;
-    }
-
-    /**
-     * Return the where clause
-     *
-     * @return string
-     */
-    public function getWhere()
-    {
-        return $this->_where;
-    }
-
     public function getParams()
     {
         return $this->_params;
@@ -342,13 +359,13 @@ class Datagrid
             if($key == 'sort') {
 
                 $sort = explode('-', $value, 2);
-                $columnDisplayedName = $sort[0];
+                $columnName = $sort[0];
                 $order = isset($sort[1]) ? strtolower($sort[1]) : self::ASC_ORDER;
-                if(array_key_exists($columnDisplayedName, $this->_columns)) {
+                if(array_key_exists($columnName, $this->_columns)) {
                     if($order == self::ASC_ORDER || $order == self::DESC_ORDER) {
-                        $this->_currentSortedColumn = $columnDisplayedName;
+                        $this->_currentSortedColumn = $columnName;
                         $this->_currentSort = $order;
-                        $column = $this->_columns[$columnDisplayedName];
+                        $column = $this->_columns[$columnName];
                         $column->setSorted(true)->setCurrentSortedOrder($order);
                     }
                     else {
@@ -356,7 +373,7 @@ class Datagrid
                     }
                 }
                 else {
-                    throw new Datagrid_Exception("Unknown column provided in order param: $columnDisplayedName");
+                    throw new Datagrid_Exception("Unknown column provided in order param: $columnName");
                 }
 
             }
@@ -385,13 +402,6 @@ class Datagrid
     {
         $session = new Zend_Session_Namespace($this->_getSessionNamespace());
 
-        // Bug in PHP 5.2:
-        /*if(isset($session->filters)) {
-            foreach($session->filters as $filterName => $filterValue) {
-                $this->_params[$filterName] = $filterValue;
-            }
-        }*/
-        // Patch:
         $sessionFilters = $session->filters;
         if(isset($sessionFilters)) {
             foreach($sessionFilters as $filterName => $filterValue) {
@@ -409,13 +419,9 @@ class Datagrid
 
         foreach($this->_filters as $filter) {
             if(isset($this->_params[$filter->getName()])) {
-                // Bug in PHP 5.2:
-                //$session->filters[$filter->getName()] = $this->_params[$filter->getName()];
-                // Patch:
                 $sessionFilters = $session->filters;
                 $sessionFilters[$filter->getName()] = $this->_params[$filter->getName()];
                 $session->filters = $sessionFilters;
-                
             }
         }
 
@@ -440,7 +446,7 @@ class Datagrid
 
     protected function _prepare()
     {
-        if($this->_isFiltering() || $this->_doResetFilters()) {
+        if($this->doSaveFiltersInSession() && ( $this->_isFiltering() || $this->_doResetFilters() )) {
             $this->_saveFiltersInSession();
         }
         else if(!$this->_doResetFilters()) {
@@ -450,36 +456,20 @@ class Datagrid
         $this->_loadParams();
 
         
-        $this->_adapter->prepare($this->_columns, $this->_relations);
+        $this->_adapter->prepare($this->_columns);
         foreach($this->_filters as $filter) {
             if(isset($this->_params[$filter->getName()])) {
-                $this->_adapter->filter($this->_columns[$filter->getColumn()], $this->_params[$filter->getName()], $filter->getMatchMode(), $this->_columns[$filter->getColumn()]->getRelations($this->_relations));
+                $this->_adapter->filter($filter->getField(), $this->_params[$filter->getName()], $filter->getMatchMode());
             }
         }
-        if($this->_isSorting()) {
-            $this->_adapter->sort($this->_columns[$this->_currentSortedColumn], $this->_currentSort, $this->_columns[$this->_currentSortedColumn]->getRelations($this->_relations));
+        if($this->_isSorting() && $this->_columns[$this->_currentSortedColumn]->isSortable()) {
+            $this->_adapter->sort($this->_columns[$this->_currentSortedColumn]->getSortingField(), $this->_currentSort);
         }
-
-        /**
-         * prepare
-         * selectColumns
-         * filter
-         * sort
-         */
     }
     
     public function render()
     {
-        /*if(empty($this->_columns)) {
-            foreach($this->_table->getColumnNames() as $columnName) {
-                $this->addColumn($columnName);
-            }
-        }
-        $columns = $this->_columns;*/
-
         $this->_prepare();
-
-
 
         // Paginate
         $paginator = new Zend_Paginator($this->_adapter);
@@ -493,15 +483,14 @@ class Datagrid
         $this->_view->translator = $this->_translator;
         $this->_view->noResultLabel = $this->_noResultLabel;
         $this->_view->caption = $this->_caption;
-        $this->_view->relations = $this->_relations;
         $this->_view->columns = $this->_columns;
-        if(!empty($this->_currentSortedColumn))
+        if(!empty($this->_currentSortedColumn)) {
             $this->_view->currentSortedColumn = $this->_columns[$this->_currentSortedColumn];
+        }
         $this->_view->currentSort = $this->_currentSort;
         $this->_view->paginator = $paginator;
         $this->_view->filtersForm = $this->getFiltersForm();
         $this->_view->commands = $this->_commands;
-        $this->_view->form = $this->getForm();
 
         return $this->_view->render('datagrid.phtml');
     }
@@ -545,152 +534,6 @@ class Datagrid
         return $form;
     }
 
-    // Form
-
-    /**
-     * Set the form to be displayed in the Datagrid
-     * 
-     * @param Zend_Form $form
-     * @return Datagrid
-     */
-    public function setForm($form)
-    {
-        //$form = new Zend_Form();
-
-        $form->setDecorators(array(
-                'FormElements',
-                array('HtmlTag', array('tag' => 'tr')),
-                'Form'
-            ));
-
-        $form->setDisableLoadDefaultDecorators(true);
-        $form->setElementDecorators(array(
-                'ViewHelper',
-                array('HtmlTag', array('tag' => 'td'))
-            ));
-        $form->setSubFormDecorators(array());
-        $form->setDisplayGroupDecorators(array());        
-
-        $this->_form = $form;
-        return $this;
-    }
-    
-    /**
-     * Return the form to be displayed in the Datagrid
-     * 
-     * @return Zend_Form
-     */
-    public function getForm()
-    {
-        return $this->_form;
-    }
-
-    // Relations
-    
-    /**
-     * Add a relation
-     *
-     * @param string|Datagrid_Relation $relation
-     * @param array $options
-     * @return Datagrid
-     */
-    public function addRelation($relation, $options = null)
-    {
-        if (!($relation instanceof Datagrid_Relation)) {
-            $relation = new Datagrid_Relation($relation, $options);
-        }
-
-        if($relation->hasRelation() && !array_key_exists($relation->getRelation(), $this->_relations)) {
-            throw new Datagrid_Exception("Datagrid does not have a relation named {$relation->getRelation()}");
-        }
-        else if(!$relation->hasRelation() && !$this->_adapter->hasRelation($relation->getName())) {
-            //throw new Datagrid_Exception("Adapter '{$this->_table->getTableName()}' does not have a relation named {$relation->getName()}");
-            // TODO: Find a descent name
-            throw new Datagrid_Adapter_Exception('Adapter \''.get_class($this->_adapter).'\' does not have a relation named '.$relation->getName().'\'');
-        }
-        
-        if(array_key_exists($relation->getName(), $this->_relations)) {
-            throw new Datagrid_Exception("Relation {$relation->getName()} already exists");
-        }
-
-        // TODO:
-        /*if($relation->hasRelation()) {
-            $relation->setType(self::ONE_RELATION);
-        }
-        else {
-            $relation->setType($this->_table->getRelation($relation->getName())->getType() ? self::MANY_RELATION : self::ONE_RELATION);
-        }*/
-        $this->_relations[$relation->getName()] = $relation;
-
-        return $this;
-    }
-    
-    /**
-     * Add multiple relations at once
-     *
-     * @param array $relations
-     * @return Datagrid
-     */
-    public function addRelations(array $relations)
-    {
-        foreach ($relations as $relationInfo) {
-            if (is_string($relationInfo)) {
-                $this->addRelation($relationInfo);
-            } elseif ($relationInfo instanceof Datagrid_Relation) {
-                $this->addRelation($relationInfo);
-            } elseif (is_array($relationInfo)) {
-                $argc    = count($relationInfo);
-                $options = array();
-                if (isset($relationInfo['relation'])) {
-                    $relation = $relationInfo['relation'];
-                    if (isset($relationInfo['options'])) {
-                        $options = $relationInfo['options'];
-                    }
-                    $this->addRelation($relation, $options);
-                } else {
-                    switch (true) {
-                        case (0 == $argc):
-                            break;
-                        case (1 <= $argc):
-                            $relation  = array_shift($relationInfo);
-                        case (2 <= $argc):
-                            $options = array_shift($relationInfo);
-                        default:
-                            $this->addRelation($relation, $options);
-                            break;
-                    }
-                }
-            } else {
-                throw new Datagrid_Exception('Invalid relation passed to addRelations()');
-            }
-        }
-
-        return $this;
-    }
-
-    /**
-     * Remove all relations
-     * 
-     * @return Datagrid
-     */
-    public function clearRelations()
-    {
-        $this->_relations = array();
-        return $this;
-    }
-    
-    /**
-     * Set relations (overwrites existing ones)
-     *
-     * @param <type> $relations
-     * @return Datagrid
-     */
-    public function setRelations(array $relations)
-    {
-        $this->clearRelations();
-        return $this->addRelations($relations);
-    }
-
     // Columns
     
     /**
@@ -706,25 +549,12 @@ class Datagrid
             $column = new Datagrid_Column($column, $options);
         }
         
-        $relation = $column->getRelation();
-        if($column->hasRelation() && !array_key_exists($relation, $this->_relations)) {
-            throw new Datagrid_Exception("Relation {$relation} for column {$column->getDisplayedName()} does not exist");
-        }
-        // Set the relation object in the column object
-        else if($column->hasRelation()) {
-            $column->setRelation($this->_relations[$relation]);
-        }
-
-        if(!$column->hasRelation() && !$this->_adapter->hasColumn($column->getName())) {
-             throw new Datagrid_Adapter_Exception('Adapter \''.get_class($this->_adapter).'\' does not have a column named \''.$column->getName().'\'');
-        }
-        
-        if(array_key_exists($column->getDisplayedName(), $this->_columns)) {
-            throw new Datagrid_Exception("Column '{$column->getDisplayedName()}' already exists");
+        if(array_key_exists($column->getName(), $this->_columns)) {
+            throw new Datagrid_Exception("Column '{$column->getName()}' already exists");
         }
 
         $column->setDatagrid($this);
-        $this->_columns[$column->getDisplayedName()] = $column;
+        $this->_columns[$column->getName()] = $column;
 
         return $this;
     }
@@ -810,16 +640,6 @@ class Datagrid
             $filter = new Datagrid_Filter($filter, $options);
         }
         
-        $relation = $filter->getRelation();
-        if($filter->hasRelation() && !array_key_exists($relation, $this->_relations)) {
-            throw new Datagrid_Exception("Relation {$relation} for filter {$filter->getName()} does not exist");
-        }
-
-        if(!$filter->hasRelation() && !array_key_exists($filter->getColumn(), $this->_columns)) {
-             //throw new Datagrid_Exception("Table '{$this->_table->getTableName()}' does not have a column named {$filter->getColumn()} for filtering");
-             throw new Datagrid_Adapter_Exception('Adapter \''.get_class($this->_adapter).'\' does not have a column named \''.$filter->getColumn().'\'');
-        }
-        
         if(array_key_exists($filter->getName(), $this->_filters)) {
             throw new Datagrid_Exception("Filter '{$filter->getName()}' already exists");
         }
@@ -897,7 +717,7 @@ class Datagrid
 
     public function setSaveFiltersInSession($saveFiltersInSession)
     {
-        $this->_saveFiltersInSession = ($saveFiltersInSession == true);
+        $this->_saveFiltersInSession = (bool) $saveFiltersInSession;
         return $this;
     }
 
@@ -927,7 +747,8 @@ class Datagrid
         if(array_key_exists($command->getName(), $this->_commands)) {
             throw new Datagrid_Exception("Command '{$command->getName()}' already exists");
         }
-        
+
+        $command->setDatagrid($this);
         $this->_commands[$command->getName()] = $command;
 
         return $this;
@@ -1002,21 +823,6 @@ class Datagrid
     // Sorting
 
     /**
-     * Set current datagrid columns sortable property
-     *
-     * @param bool $sortable
-     * @return Datagrid
-     */
-    public function setColumnsSortable($sortable)
-    {
-        foreach($this->_columns as $column) {
-            $column->setSortable($sortable);
-        }
-
-        return $this;
-    }
-
-    /**
      * Get the current sorted column
      *
      * @return string
@@ -1035,15 +841,6 @@ class Datagrid
     public function getCurrentSort()
     {
         return $this->_currentSort;
-    }
-
-    public function addOrderby($column, $order = self::ASC_ORDER)
-    {
-        if($this->_adapter->hasColumn($column)) {
-            $this->_orderby[] = "$column $order";
-        }
-
-        return $this;
     }
 
     // Pagination
@@ -1070,69 +867,4 @@ class Datagrid
         return $this->_recordCountPerPage;
     }
 
-    // Construct query
-
-    protected function _getQuery()
-    {
-        $this->_loadParams();
-        
-        $tableAlias = $this->_tableAlias;
-
-        $query = $this->_table->createQuery($tableAlias);
-
-        if(!empty($this->_where)) {
-            $query->addWhere($this->_where);
-        }
-
-        foreach($this->_relations as $key => $relation) {
-            $alias = $relation->getAlias();
-            $where = $relation->getWhere();
-            if($relation->hasRelation()) {
-                $parentRelation = $this->_relations[$relation->getRelation()];
-                $query->leftJoin("{$parentRelation->getAlias()}.{$relation->getName()} $alias");
-            }
-            else {
-                $query->leftJoin("$tableAlias.{$relation->getName()} $alias");
-            }
-            if(!empty($where)){
-                $query->addWhere($where);
-            }
-        }
-
-        foreach($this->_filters as $filter) {
-            if($filter->hasRelation()) {
-                $where = $filter->getWhereClause($this->_tableAlias, $this->_params, $this->_relations[$filter->getRelation()]);
-            }
-            else {
-                $where = $filter->getWhereClause($this->_tableAlias, $this->_params);
-            }
-            
-            if(!empty($where)) {
-                $query->addWhere($where);
-            }
-        }
-
-        /*foreach($this->_orderby as $orderby) {
-            $query->addOrderBy("$tableAlias.$orderby");
-        }*/
-        
-        if(!empty($this->_currentSortedColumn)) {
-            $currentSortedColumn = $this->_columns[$this->_currentSortedColumn];
-            if($currentSortedColumn->hasRelation()) {
-                $relation = $currentSortedColumn->getRelation();
-                $relation = $relation['name'];
-                $query->addOrderBy($this->_columns[$this->_currentSortedColumn]->getOrderByClause($this->_relations[$relation]->getAlias(), $this->_currentSort));
-            }
-            else {
-                $query->addOrderBy($this->_columns[$this->_currentSortedColumn]->getOrderByClause($this->_tableAlias, $this->_currentSort));
-            }
-        }
-        //$query->addOrderBy('m.Seasons.id ASC');
-        
-        $query->setHydrationMode(Doctrine::HYDRATE_ARRAY);
-
-        //echo $query->getSqlQuery();
-
-        return $query;
-    }
 }

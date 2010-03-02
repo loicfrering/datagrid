@@ -11,19 +11,18 @@ class Datagrid_Filter
     const MATCH_CONTAINS = 'MATCH_CONTAINS';
     const SELECT_ALL     = '';
     
-    protected $_column;
     protected $_name;
+    protected $_field;
     protected $_type = self::TYPE_TEXT;
     protected $_label;
     protected $_description;
     protected $_selectValues = array();
     protected $_matchMode = self::MATCH_BEGINS;
-    protected $_relation;
     
     public function __construct($spec, $options = null)
     {
         if (is_string($spec)) {
-            $this->setColumn($spec);
+            $this->setName($spec);
         } elseif (is_array($spec)) {
             $this->setOptions($spec);
         } elseif ($spec instanceof Zend_Config) {
@@ -36,16 +35,15 @@ class Datagrid_Filter
             $this->setConfig($options);
         }
         
-        if (empty($this->_column)) {
-            throw new Exception('Filter requires a non empty column name');
+        if (empty($this->_name)) {
+            throw new Exception('Filter requires a non empty name');
         }
 
-        if(!isset($this->_name)) {
-            $this->_name = $this->_column;
-        }
-        
         if(!isset($this->_label)) {
             $this->_label = ucfirst($this->_name.':');
+        }
+        if(!isset($this->_field)) {
+            $this->_field = $this->_name;
         }
     }
     
@@ -76,17 +74,17 @@ class Datagrid_Filter
     {
         return $this->_name;
     }
-    
-    public function setColumn($column)
+
+    public function setField($field)
     {
-        $this->_column = $column;
-        
+        $this->_field = $field;
+
         return $this;
     }
 
-    public function getColumn()
+    public function getField()
     {
-        return $this->_column;
+        return $this->_field;
     }
     
     public function setType($type)
@@ -149,23 +147,6 @@ class Datagrid_Filter
         return $this->_matchMode;
     }
     
-    public function setRelation($relation)
-    {
-        $this->_relation = $relation;
-        
-        return $this;
-    }
-
-    public function getRelation()
-    {
-        return $this->_relation;
-    }
-
-    public function hasRelation()
-    {
-        return !empty($this->_relation);
-    }
-    
     public function getFormElement($params = null, $translator = null)
     {
         $param = isset($params[$this->_name]) ? $params[$this->_name] : '';
@@ -198,32 +179,4 @@ class Datagrid_Filter
         return $element;
     }
 
-    public function getWhereClause($classAlias, $params, $relation = null)
-    {
-        $param = isset($params[$this->_name]) ? $params[$this->_name] : null;
-
-
-        if($this->hasRelation()) {
-            $columnLabel = "{$relation->getAlias()}.{$this->_column}";
-        }
-        else {
-            $columnLabel = "$classAlias.{$this->_column}";
-        }
-
-        if(isset($param) && $param != self::SELECT_ALL) {
-            switch($this->_matchMode) {
-                case self::MATCH_BEGINS:
-                return "$columnLabel LIKE '$param%'";
-                
-                case self::MATCH_CONTAINS:
-                return "$columnLabel LIKE '%$param%'";
-
-                default:
-                return null;
-            }
-        }
-
-        return null;
-    }
-    
 }

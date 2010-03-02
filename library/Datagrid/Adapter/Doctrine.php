@@ -45,22 +45,12 @@ class Datagrid_Adapter_Doctrine implements Datagrid_Adapter_Interface
         return $this->_tableAlias;
     }
 
-    public function hasColumn($columnName)
-    {
-        return $this->_table->hasColumn($columnName);
-    }
-
-    public function hasRelation($relationName)
-    {
-        return $this->_table->hasRelation($relationName);
-    }
-
-    public function prepare(array $columns, array $relations)
+    public function prepare(array $columns)
     {
         $this->_query = $this->_table->createQuery($this->getTableAlias());
-        $this->_query->setHydrationMode(Doctrine::HYDRATE_ARRAY);
+        //$this->_query->setHydrationMode(Doctrine::HYDRATE_ARRAY);
 
-        foreach($relations as $relation) {
+        /*foreach($relations as $relation) {
             $alias = $relation->getAlias();
             //$where = $relation->getWhere();
             if($relation->hasRelation()) {
@@ -70,10 +60,7 @@ class Datagrid_Adapter_Doctrine implements Datagrid_Adapter_Interface
                 $parentAlias = $this->getTableAlias();
             }
             $this->_query->leftJoin("$parentAlias.{$relation->getName()} $alias");
-            /*if(!empty($where)){
-                $query->addWhere($where);
-            }*/
-        }
+        }*/
     }
 
     /**
@@ -82,106 +69,26 @@ class Datagrid_Adapter_Doctrine implements Datagrid_Adapter_Interface
      * @param string $order
      * @param array $relations
      */
-    public function sort($column, $order)
+    public function sort($field, $order)
     {
         $order = ($order == Datagrid::DESC_ORDER) ? 'desc' : 'asc';
-        if($column->hasRelation()) {
-            $relation = $column->getRelation();
-            $this->_query->addOrderBy("{$relation->getAlias()}.{$column->getName()} $order");
-        }
-        else {
-            $this->_query->addOrderBy("{$this->getTableAlias()}.{$column->getName()} $order");
-        }
+        $this->_query->addOrderBy("{$this->getTableAlias()}.$field $order");
     }
 
-    public function filter($column, $filter, $matchMode)
+    public function filter($field, $filter, $matchMode)
     {
-        if($column->hasRelation()) {
-            $columnLabel = "{$column->getRelation()->getAlias()}.{$column->getName()}";
-        }
-        else {
-            $columnLabel = "{$this->getTableAlias()}.{$column->getName()}";
-        }
+        echo ("{$this->getTableAlias()}.$field");
 
         switch($matchMode) {
-            case Datagrid_Filter::MATCH_BEGINS:
-            $where = "$columnLabel LIKE '$filter%'";
-            break;
-
             case Datagrid_Filter::MATCH_CONTAINS:
-            $where = "$columnLabel LIKE '%$filter%'";
+            $where = "{$this->getTableAlias()}.$field LIKE '%$filter%'";
             break;
 
+            case Datagrid_Filter::MATCH_BEGINS:
             default:
-            $where = "$columnLabel LIKE '$filter%'";
+            $where = "{$this->getTableAlias()}.$field LIKE '$filter%'";
         }
         $this->_query->addWhere($where);
-    }
-
-    /**
-     * Pour mémoire ! No more used.
-     */
-    protected function _getQuery(array $columns, array $relations, array $filters)
-    {
-        $this->_loadParams();
-
-        $tableAlias = $this->_tableAlias;
-
-        $query = $this->_table->createQuery($tableAlias);
-
-        if(!empty($this->_where)) {
-            $query->addWhere($this->_where);
-        }
-
-        foreach($relations as $key => $relation) {
-            $alias = $relation->getAlias();
-            $where = $relation->getWhere();
-            if($relation->hasRelation()) {
-                $parentRelation = $relations[$relation->getRelation()];
-                $query->leftJoin("{$parentRelation->getAlias()}.{$relation->getName()} $alias");
-            }
-            else {
-                $query->leftJoin("$tableAlias.{$relation->getName()} $alias");
-            }
-            if(!empty($where)){
-                $query->addWhere($where);
-            }
-        }
-
-        foreach($filters as $filter) {
-            if($filter->hasRelation()) {
-                $where = $filter->getWhereClause($this->_tableAlias, $this->_params, $relations[$filter->getRelation()]);
-            }
-            else {
-                $where = $filter->getWhereClause($this->_tableAlias, $this->_params);
-            }
-
-            if(!empty($where)) {
-                $query->addWhere($where);
-            }
-        }
-
-        /*foreach($this->_orderby as $orderby) {
-            $query->addOrderBy("$tableAlias.$orderby");
-        }*/
-
-        if(!empty($this->_currentSortedColumn)) {
-            $currentSortedColumn = $columns[$this->_currentSortedColumn];
-            if($currentSortedColumn->hasRelation()) {
-                $relation = $currentSortedColumn->getRelation();
-                $relation = $relation['name'];
-                $query->addOrderBy($columns[$this->_currentSortedColumn]->getOrderByClause($relations[$relation]->getAlias(), $this->_currentSort));
-            }
-            else {
-                $query->addOrderBy($columns[$this->_currentSortedColumn]->getOrderByClause($this->_tableAlias, $this->_currentSort));
-            }
-        }
-
-        $query->setHydrationMode(Doctrine::HYDRATE_ARRAY);
-
-        //echo $query->getSqlQuery();
-
-        return $query;
     }
 
     public function getItems($offset, $itemCountPerPage)
@@ -189,6 +96,39 @@ class Datagrid_Adapter_Doctrine implements Datagrid_Adapter_Interface
         $pager = new Doctrine_Pager($this->_query, $offset/$itemCountPerPage+1, $itemCountPerPage);
 
         return $pager->execute();
+    }
+
+    public function get($item, $field)
+    {
+        try {
+            if(false !== strpos($field, '.')) {
+                return $this->_getRelated($item, $field);
+            }
+            else {
+                return $item[$field];
+            }
+        }
+        catch(Doctrine_Exception $e) {
+            return null;
+        }
+    }
+
+    protected function _getRelated($item, $field)
+    {
+        $relations = explode('.', $field);
+
+        $field = array_pop($relations);
+        $relatedRecords = $item;
+        
+        foreach($relations as $relation) {
+            $relatedRecords = $relatedRecords[$relation];
+        }
+
+        $out = array();
+        foreach($relatedRecords as $relatedRecord) {
+            $out[] = $relatedRecord[$field];
+        }
+        return $out;
     }
 
     public function count()
