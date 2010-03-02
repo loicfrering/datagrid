@@ -190,7 +190,7 @@ class Datagrid
                 $this->$method($value);
             }
             else {
-                throw new Exception("Unknown property '$key' for Datagrid");
+                throw new Datagrid_Exception("Unknown property '$key' for Datagrid");
             }
         }
         return $this;
@@ -208,7 +208,7 @@ class Datagrid
             $this->_translator = $translator;
         }
         else {
-            throw new Exception('Translator must be a Zend_Translate instance');
+            throw new Datagrid_Exception('Translator must be a Zend_Translate instance');
         }
         return $this;
     }
@@ -329,11 +329,11 @@ class Datagrid
                         $this->_currentSort = $order;
                     }
                     else {
-                        throw new Exception('Invalid order provided in params');
+                        throw new Datagrid_Exception('Invalid order provided in params');
                     }
                 }
                 else {
-                    throw new Exception("Unknown column provided in order param: $columnDisplayedName");
+                    throw new Datagrid_Exception("Unknown column provided in order param: $columnDisplayedName");
                 }
 
             }
@@ -429,7 +429,9 @@ class Datagrid
         
         $this->_adapter->prepare();
         foreach($this->_filters as $filter) {
-            $this->_adapter->filter($filter->getColumn(), $this->_params[$filter->getName()], $filter->getMatchMode(), $this->_columns[$filter->getColumn()]->getRelations($this->_relations));
+            if(isset($this->_params[$filter->getName()])) {
+                $this->_adapter->filter($filter->getColumn(), $this->_params[$filter->getName()], $filter->getMatchMode(), $this->_columns[$filter->getColumn()]->getRelations($this->_relations));
+            }
         }
         if($this->_isSorting()) {
             $this->_adapter->sort($this->_currentSortedColumn, $this->_currentSort, $this->_columns[$this->_currentSortedColumn]->getRelations($this->_relations));
@@ -576,16 +578,16 @@ class Datagrid
         }
 
         if($relation->hasRelation() && !array_key_exists($relation->getRelation(), $this->_relations)) {
-            throw new Exception("Datagrid does not have a relation named {$relation->getRelation()}");
+            throw new Datagrid_Exception("Datagrid does not have a relation named {$relation->getRelation()}");
         }
         else if(!$relation->hasRelation() && !$this->_adapter->hasRelation($relation->getName())) {
-            //throw new Exception("Adapter '{$this->_table->getTableName()}' does not have a relation named {$relation->getName()}");
+            //throw new Datagrid_Exception("Adapter '{$this->_table->getTableName()}' does not have a relation named {$relation->getName()}");
             // TODO: Find a descent name
-            throw new Exception('Adapter \''.get_class($this->_adapter).'\' does not have a relation named '.$relation->getName().'\'');
+            throw new Datagrid_Adapter_Exception('Adapter \''.get_class($this->_adapter).'\' does not have a relation named '.$relation->getName().'\'');
         }
         
         if(array_key_exists($relation->getName(), $this->_relations)) {
-            throw new Exception("Relation {$relation->getName()} already exists");
+            throw new Datagrid_Exception("Relation {$relation->getName()} already exists");
         }
 
         // TODO:
@@ -636,7 +638,7 @@ class Datagrid
                     }
                 }
             } else {
-                throw new Exception('Invalid relation passed to addRelations()');
+                throw new Datagrid_Exception('Invalid relation passed to addRelations()');
             }
         }
 
@@ -683,16 +685,16 @@ class Datagrid
         
         $relation = $column->getRelation();
         if($column->hasRelation() && !array_key_exists($relation['name'], $this->_relations)) {
-            throw new Exception("Relation {$relation['name']} for column {$column->getDisplayedName()} does not exist");
+            throw new Datagrid_Exception("Relation {$relation['name']} for column {$column->getDisplayedName()} does not exist");
         }
 
         if(!$column->hasRelation() && !$this->_adapter->hasColumn($column->getName())) {
-             //throw new Exception("Table '{$this->_table->getTableName()}' does not have a column named {$column->getName()}");
-             throw new Exception('Adapter \''.get_class($this->_adapter).'\' does not have a column named \''.$column->getName().'\'');
+             //throw new Datagrid_Exception("Table '{$this->_table->getTableName()}' does not have a column named {$column->getName()}");
+             throw new Datagrid_Adapter_Exception('Adapter \''.get_class($this->_adapter).'\' does not have a column named \''.$column->getName().'\'');
         }
         
         if(array_key_exists($column->getDisplayedName(), $this->_columns)) {
-            throw new Exception("Column '{$column->getDisplayedName()}' already exists");
+            throw new Datagrid_Exception("Column '{$column->getDisplayedName()}' already exists");
         }
         
         $this->_columns[$column->getDisplayedName()] = $column;
@@ -736,7 +738,7 @@ class Datagrid
                     }
                 }
             } else {
-                throw new Exception('Invalid column passed to addColumns()');
+                throw new Datagrid_Exception('Invalid column passed to addColumns()');
             }
         }
 
@@ -783,16 +785,16 @@ class Datagrid
         
         $relation = $filter->getRelation();
         if($filter->hasRelation() && !array_key_exists($relation, $this->_relations)) {
-            throw new Exception("Relation {$relation} for filter {$filter->getName()} does not exist");
+            throw new Datagrid_Exception("Relation {$relation} for filter {$filter->getName()} does not exist");
         }
 
         if(!$filter->hasRelation() && !$this->_adapter->hasColumn($filter->getColumn())) {
-             //throw new Exception("Table '{$this->_table->getTableName()}' does not have a column named {$filter->getColumn()} for filtering");
-             throw new Exception('Adapter \''.get_class($this->_adapter).'\' does not have a column named \''.$column->getName().'\'');
+             //throw new Datagrid_Exception("Table '{$this->_table->getTableName()}' does not have a column named {$filter->getColumn()} for filtering");
+             throw new Datagrid_Adapter_Exception('Adapter \''.get_class($this->_adapter).'\' does not have a column named \''.$column->getName().'\'');
         }
         
         if(array_key_exists($filter->getName(), $this->_filters)) {
-            throw new Exception("Filter '{$filter->getName()}' already exists");
+            throw new Datagrid_Exception("Filter '{$filter->getName()}' already exists");
         }
         
         $this->_filters[$filter->getName()] = $filter;
@@ -836,7 +838,7 @@ class Datagrid
                     }
                 }
             } else {
-                throw new Exception('Invalid filter passed to addFilters()');
+                throw new Datagrid_Exception('Invalid filter passed to addFilters()');
             }
         }
 
@@ -896,7 +898,7 @@ class Datagrid
         }
         
         if(array_key_exists($command->getName(), $this->_commands)) {
-            throw new Exception("Command '{$command->getName()}' already exists");
+            throw new Datagrid_Exception("Command '{$command->getName()}' already exists");
         }
         
         $this->_commands[$command->getName()] = $command;
@@ -940,7 +942,7 @@ class Datagrid
                     }
                 }
             } else {
-                throw new Exception('Invalid command passed to addCommands()');
+                throw new Datagrid_Exception('Invalid command passed to addCommands()');
             }
         }
 
