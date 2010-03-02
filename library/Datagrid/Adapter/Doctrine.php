@@ -83,16 +83,11 @@ class Datagrid_Adapter_Doctrine implements Datagrid_Adapter_Interface
 
     public function filter($column, $filter, $matchMode, array $relations = array())
     {
-        foreach($filters as $filter) {
-            if($filter->hasRelation()) {
-                $where = $filter->getWhereClause($this->_tableAlias, $this->_params, $relations[$filter->getRelation()]);
-            }
-            else {
-                $where = $filter->getWhereClause($this->_tableAlias, $this->_params);
-            }
-
+        if(!empty($filter) && $filter != Datagrid_Filter::SELECT_ALL) {
+            $where = $this->_getWhereClause($column, $filter, $matchMode, $relations);
             if(!empty($where)) {
-                $query->addWhere($where);
+                echo 'WHERE : '.$where;
+                $this->_query->addWhere($where);
             }
         }
     }
@@ -172,31 +167,24 @@ class Datagrid_Adapter_Doctrine implements Datagrid_Adapter_Interface
         return $this->_query->count();
     }
 
-    protected function _getWhereClause($classAlias, $params, $relation = null)
+    protected function _getWhereClause($column, $filter, $matchMode, $relation = null)
     {
-        $param = isset($params[$this->_name]) ? $params[$this->_name] : null;
-
-
-        if($this->hasRelation()) {
+        if(!empty($relation)) {
             $columnLabel = "{$relation->getAlias()}.{$this->_column}";
         }
         else {
-            $columnLabel = "$classAlias.{$this->_column}";
+            $columnLabel = "$this->_tableAlias.{$column}";
         }
 
-        if(isset($param) && $param != self::SELECT_ALL) {
-            switch($this->_matchMode) {
-                case self::MATCH_BEGINS:
-                return "$columnLabel LIKE '$param%'";
+        switch($matchMode) {
+            case Datagrid_Filter::MATCH_BEGINS:
+            return "$columnLabel LIKE '$filter%'";
 
-                case self::MATCH_CONTAINS:
-                return "$columnLabel LIKE '%$param%'";
+            case Datagrid_Filter::MATCH_CONTAINS:
+            return "$columnLabel LIKE '%$filter%'";
 
-                default:
-                return null;
-            }
+            default:
+            return null;
         }
-
-        return null;
     }
 }
