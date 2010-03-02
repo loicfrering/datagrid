@@ -1,0 +1,23 @@
+Phone:
+    HomeLoïc:
+        number: 0 954 954 786
+    MobileLoïc:
+        number: 06 48 08 67 79
+    HomeSolène:
+        number: 0 954 954 786
+    MobileSolène:
+        number: 06 47 95 52 52
+
+User:
+    Loïc:
+        firstname: Loïc
+        lastname: Frering
+        age: 24
+        job: Responsable d'Application
+        Phones: [HomeLoïc, MobileLoïc]
+    Solène:
+        firstname: Solène
+        lastname: Weber
+        age: 25
+        job: Business Analyst
+        Phones: [HomeSolène, MobileSolène]

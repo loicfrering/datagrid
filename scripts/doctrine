@@ -1,0 +1,20 @@
+#!/usr/bin/env php
+<?php
+set_include_path(
+    '../library'
+    . PATH_SEPARATOR . get_include_path()
+);
+
+require_once "Zend/Loader.php";
+Zend_Loader::registerAutoload();
+
+require_once '../application/bootstrap.php';
+
+$cli = new Doctrine_Cli(array(
+        'data_fixtures_path' => '../application/doctrine/data/fixtures',
+        'models_path' => '../application/models',
+        'migrations_path' => '../application/doctrine/migrations',
+        'sql_path' => '../application/doctrine/data/sql',
+        'yaml_schema_path' => '../application/doctrine/schema'
+    ));
+$cli->run($_SERVER['argv']);

@@ -1,0 +1,104 @@
+<?php
+if(!function_exists('cycle')) {
+    function cycle(array $array)
+    {
+        static $i = 0;
+        $value = $array[$i];
+        $i = ($i+1) % count($array);
+        return $value;
+    }
+}
+
+$this->headScript()->appendFile(Zend_Controller_Front::getInstance()->getBaseUrl().'/js/prototype.js');
+$this->headScript()->appendFile(Zend_Controller_Front::getInstance()->getBaseUrl().'/js/scriptaculous.js?load=effects');
+$this->headScript()->captureStart();
+?>
+    function init() {
+        if(null != $('filters-toggle')) {
+            $('filters-toggle').observe('click', toggleFilters);
+        }
+    }
+    
+    function toggleFilters(event) {
+        //Event.stop(event);
+        var hideFilters = $('filters-toggle');
+        var filtersDiv = $('filters-div');
+        if(filtersDiv.visible()) {
+            hideFilters.update('<?= $this->translator->_(Datagrid::FILTER_SHOW_LABEL) ?>');
+            hideFilters.className = 'show';
+        }
+        else {
+            hideFilters.update('<?= $this->translator->_(Datagrid::FILTER_HIDE_LABEL) ?>');
+            hideFilters.className = 'hide';
+        }
+        
+        Effect.toggle(filtersDiv, 'blind');
+    }
+
+    Event.observe(window, 'load', init);
+<?php $this->headScript()->captureEnd(); ?>
+
+<?php if(null != $this->filtersForm) : ?>
+    <fieldset id="filters" class="filters">
+        <!--legend>Filters</legend-->
+        <h1 id="filters-title">
+            <?= isset($this->translator) ? $this->translator->_(Datagrid::FILTER_FIELDSET_LABEL) : 'Filter' ?>
+            <span id="filters-toggle" class="hide"><?= $this->translator->_(Datagrid::FILTER_HIDE_LABEL) ?></span>
+        </h1>
+        <div id="filters-div">
+            <?= $this->filtersForm ?>
+            <a id="filters-reset" href="<?= $this->url(array('action' => $this->action, 'controller' => $this->controller, 'module' => $this->module, 'filters' => 'reset'), null, true) ?>" title="<?= $this->translator->_(Datagrid::FILTER_RESET_LABEL) ?>"><?= $this->translator->_(Datagrid::FILTER_RESET_LABEL) ?></a>
+        </div>
+    </fieldset>
+<?php endif; ?>
+
+<?php if($this->paginator->count() > 0) : ?>
+    <table>
+        <?php if(!empty($this->caption)) : ?>
+            <caption><?= $this->escape($this->caption) ?></caption>
+        <?php endif; ?>
+        <thead>
+            <tr>
+                <?php foreach($this->columns as $column) : $sort = isset($this->currentSortedColumn) && $this->currentSortedColumn->getName() == $column->getName() && $this->currentSort == Datagrid::ASC_ORDER ? Datagrid::DESC_ORDER : Datagrid::ASC_ORDER; ?>
+                    <?php if($column->isSortable()) : ?>
+                        <th><a href="<?= $this->url(array('page' => 1, 'sort' => $column->getDisplayedName().($sort == Datagrid::DESC_ORDER ? '-'.Datagrid::DESC_ORDER : ''))).(!empty($_GET) ? '?'.http_build_query($_GET) : '') ?>" title="Sort <?= $sort == Datagrid::DESC_ORDER ? 'descending' : 'ascending' ?>"><?= $this->escape($column->getTitle()) ?></a></th>
+                    <?php else : ?>
+                        <th><?= $this->escape($column->getTitle()) ?></th>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+                <?php foreach($this->commands as $command) : ?>
+                    <th>&nbsp;</th>
+                <?php endforeach; ?>
+            </tr>
+        </thead>
+        <tbody class="<?= isset($this->currentSortedColumn) && $this->currentSortedColumn->doGroupSortedRecords() ? cycle(array('odd', 'even')) : '' ?>">
+            <?php $previousRecord = $this->paginator->getItem(0, $this->paginator->getCurrentPageNumber()); foreach($this->paginator as $record) : /* à remplacer quand relation ne sera plus un array*/ $relation = isset($this->currentSortedColumn) ? $this->currentSortedColumn->getRelation() : null; ?>
+                <?php if(isset($this->currentSortedColumn) && $this->currentSortedColumn->doGroupSortedRecords() && !$this->currentSortedColumn->recordsEquals($previousRecord, $record, isset($relation['name']) ? $this->relations[$relation['name']] : null)) : ?>
+                    </tbody>
+                    <tbody class="<?= cycle(array('odd', 'even')) ?>">
+                    <?php // We could eventually render a row with column sort value for the group ?>
+                <?php endif; $previousRecord = $record; ?>
+                <tr class="<?= !isset($this->currentSortedColumn) || !$this->currentSortedColumn->doGroupSortedRecords() ? cycle(array('odd', 'even')) : '' ?>">
+                    <?php foreach($this->columns as $column) : $relation = $column->getRelation(); $render = $column->render($record, $column->hasRelation() ? $this->relations : null) ?>
+                        <td><?= ($render==0 || !empty($render)) ? $render : '&nbsp;' ?></td>
+                    <?php endforeach; ?>
+                    <?php foreach($this->commands as $command) : ?>
+                        <?php /*<td><a href="<?= $this->url($command->makeUrlOptions($record), null, true) ?>" title="<?= $command->getLabel() ?>"><?= $command->getLabel() ?></a></td>*/ ?>
+                        <td><?= $command->render($record, $this); ?></td>
+                    <?php endforeach; ?>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+        <?php if(!empty($this->form)) : ?>
+            <?= $this->form ?>
+        <?php endif; ?>
+    </table>
+    <p class="pagination">
+        <?= $this->paginationControl($this->paginator, 'Sliding', 'searchPaginationControl.phtml') ?>
+    </p>
+<?php else : ?>
+    <p>
+        <?= empty($this->noResultLabel) ? $this->translator->_(Datagrid::NO_RESULT_LABEL) : $this->noResultLabel; ?>
+    </p>
+<?php endif; ?>
+

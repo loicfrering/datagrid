@@ -1,0 +1,15 @@
+User:
+    columns:
+        firstname: string(100)
+        lastname: string(100)
+        age: integer(3)
+        job: string(100)
+
+Phone:
+    columns:
+        number: string(14)
+        user_id: integer
+    relations:
+        User:
+            foreignAlias: Phones
+

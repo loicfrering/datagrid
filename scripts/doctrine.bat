@@ -1,0 +1,1 @@
+C:\wamp\bin\php\php5.2.5\php.exe -f doctrine %1 %2 %3 %4 %5 %6

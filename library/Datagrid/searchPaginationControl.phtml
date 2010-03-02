@@ -1,0 +1,26 @@
+<?php if ($this->pageCount): ?>
+<!-- div id="paginationControl" -->
+<!-- Previous page link -->
+<?php if (isset($this->previous)): ?>
+  <a href="<?= $this->url(array('page' => $this->previous)).(!empty($_GET) ? '?'.http_build_query($_GET) : ''); ?>">&lt; Précédents</a> |
+<?php else: ?>
+  <span class="disabled">&lt; Précédents</span> |
+<?php endif; ?>
+
+<!-- Numbered page links -->
+<?php foreach ($this->pagesInRange as $page): ?>
+  <?php if ($page != $this->current): ?>
+    <a href="<?= $this->url(array('page' => $page)).(!empty($_GET) ? '?'.http_build_query($_GET) : ''); ?>"><?= $page; ?></a> |
+  <?php else: ?>
+    <?= $page; ?> |
+  <?php endif; ?>
+<?php endforeach; ?>
+
+<!-- Next page link -->
+<?php if (isset($this->next)): ?>
+<a href="<?= $this->url(array('page' => $this->next)).(!empty($_GET) ? '?'.http_build_query($_GET) : ''); ?>">Suivants &gt;</a>
+<?php else: ?>
+  <span class="disabled">Suivants &gt;</span>
+<?php endif; ?>
+<!-- /div -->
+<?php endif; ?>
