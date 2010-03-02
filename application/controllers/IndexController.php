@@ -50,24 +50,10 @@ class IndexController extends Zend_Controller_Action
         
         $datagrid = new Datagrid(new Datagrid_Adapter_Array($array), $this->_getAllParams());
         $datagrid->setRecordCountPerPage(1)
-                 ->addRelation('Phones')
                  ->addColumn('firstname')
                  ->addColumn('lastname')
                  ->addColumn('age')
                  ->addColumn('job')
-                 ->addColumn('number', array(
-                         'decorator' => array(
-                            'prepend' => '<ul>',
-                            'append' => '</ul>'
-                         ),
-                         'relation' => array(
-                            'name' => 'Phones',
-                            'elementDecorator' => array(
-                                'prepend' => '<li>',
-                                'append' => '</li>'
-                            )
-                         )
-                     ))
                  ->addFilter('firstname')
                  ->addFilter('job', array(
                         'matchMode' => Datagrid_Filter::MATCH_CONTAINS
