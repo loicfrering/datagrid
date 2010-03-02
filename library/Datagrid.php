@@ -14,12 +14,15 @@
 class Datagrid
 {
     /**
-     * DoctrineDatagrid constants
+     * Datagrid constants
      */
     const ONE_RELATION  = 'ONE_RELATION';
     const MANY_RELATION = 'MANY_RELATION';
     const ASC_ORDER     = 'asc';
     const DESC_ORDER    = 'desc';
+
+    const SORT_ASCENDING_LABEL  = 'Sort ascending';
+    const SORT_DESCENDING_LABEL  = 'Sort descending';
 
     const FILTER_SUBMIT_LABEL   = 'Filter';
     const FILTER_ALL_LABEL      = 'All';
@@ -196,6 +199,19 @@ class Datagrid
         return $this;
     }
 
+    public function getAdapter() {
+        return $this->_adapter;
+    }
+
+    public function setAdapter($adapter) {
+        $this->_adapter = $adapter;
+        return $this;
+    }
+
+    public function getView() {
+        return $this->_view;
+    }
+
     /**
      * Set the datagrid translator object
      *
@@ -286,6 +302,11 @@ class Datagrid
     {
         return $this->_where;
     }
+
+    public function getParams()
+    {
+        return $this->_params;
+    }
     
     /**
      * Set the request parameters for organizing the datagrid
@@ -327,6 +348,8 @@ class Datagrid
                     if($order == self::ASC_ORDER || $order == self::DESC_ORDER) {
                         $this->_currentSortedColumn = $columnDisplayedName;
                         $this->_currentSort = $order;
+                        $column = $this->_columns[$columnDisplayedName];
+                        $column->setSorted(true)->setCurrentSortedOrder($order);
                     }
                     else {
                         throw new Datagrid_Exception('Invalid order provided in params');
@@ -427,14 +450,14 @@ class Datagrid
         $this->_loadParams();
 
         
-        $this->_adapter->prepare();
+        $this->_adapter->prepare($this->_columns, $this->_relations);
         foreach($this->_filters as $filter) {
             if(isset($this->_params[$filter->getName()])) {
-                $this->_adapter->filter($filter->getColumn(), $this->_params[$filter->getName()], $filter->getMatchMode(), $this->_columns[$filter->getColumn()]->getRelations($this->_relations));
+                $this->_adapter->filter($this->_columns[$filter->getColumn()], $this->_params[$filter->getName()], $filter->getMatchMode(), $this->_columns[$filter->getColumn()]->getRelations($this->_relations));
             }
         }
         if($this->_isSorting()) {
-            $this->_adapter->sort($this->_currentSortedColumn, $this->_currentSort, $this->_columns[$this->_currentSortedColumn]->getRelations($this->_relations));
+            $this->_adapter->sort($this->_columns[$this->_currentSortedColumn], $this->_currentSort, $this->_columns[$this->_currentSortedColumn]->getRelations($this->_relations));
         }
 
         /**
@@ -684,19 +707,23 @@ class Datagrid
         }
         
         $relation = $column->getRelation();
-        if($column->hasRelation() && !array_key_exists($relation['name'], $this->_relations)) {
-            throw new Datagrid_Exception("Relation {$relation['name']} for column {$column->getDisplayedName()} does not exist");
+        if($column->hasRelation() && !array_key_exists($relation, $this->_relations)) {
+            throw new Datagrid_Exception("Relation {$relation} for column {$column->getDisplayedName()} does not exist");
+        }
+        // Set the relation object in the column object
+        else if($column->hasRelation()) {
+            $column->setRelation($this->_relations[$relation]);
         }
 
         if(!$column->hasRelation() && !$this->_adapter->hasColumn($column->getName())) {
-             //throw new Datagrid_Exception("Table '{$this->_table->getTableName()}' does not have a column named {$column->getName()}");
              throw new Datagrid_Adapter_Exception('Adapter \''.get_class($this->_adapter).'\' does not have a column named \''.$column->getName().'\'');
         }
         
         if(array_key_exists($column->getDisplayedName(), $this->_columns)) {
             throw new Datagrid_Exception("Column '{$column->getDisplayedName()}' already exists");
         }
-        
+
+        $column->setDatagrid($this);
         $this->_columns[$column->getDisplayedName()] = $column;
 
         return $this;
@@ -788,9 +815,9 @@ class Datagrid
             throw new Datagrid_Exception("Relation {$relation} for filter {$filter->getName()} does not exist");
         }
 
-        if(!$filter->hasRelation() && !$this->_adapter->hasColumn($filter->getColumn())) {
+        if(!$filter->hasRelation() && !array_key_exists($filter->getColumn(), $this->_columns)) {
              //throw new Datagrid_Exception("Table '{$this->_table->getTableName()}' does not have a column named {$filter->getColumn()} for filtering");
-             throw new Datagrid_Adapter_Exception('Adapter \''.get_class($this->_adapter).'\' does not have a column named \''.$column->getName().'\'');
+             throw new Datagrid_Adapter_Exception('Adapter \''.get_class($this->_adapter).'\' does not have a column named \''.$filter->getColumn().'\'');
         }
         
         if(array_key_exists($filter->getName(), $this->_filters)) {

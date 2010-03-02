@@ -59,12 +59,9 @@ $this->headScript()->captureStart();
         <?php endif; ?>
         <thead>
             <tr>
-                <?php foreach($this->columns as $column) : $sort = isset($this->currentSortedColumn) && $this->currentSortedColumn->getName() == $column->getName() && $this->currentSort == Datagrid::ASC_ORDER ? Datagrid::DESC_ORDER : Datagrid::ASC_ORDER; ?>
-                    <?php if($column->isSortable()) : ?>
-                        <th><a href="<?= $this->url(array('page' => 1, 'sort' => $column->getDisplayedName().($sort == Datagrid::DESC_ORDER ? '-'.Datagrid::DESC_ORDER : ''))).(!empty($_GET) ? '?'.http_build_query($_GET) : '') ?>" title="Sort <?= $sort == Datagrid::DESC_ORDER ? 'descending' : 'ascending' ?>"><?= $this->escape($column->getTitle()) ?></a></th>
-                    <?php else : ?>
-                        <th><?= $this->escape($column->getTitle()) ?></th>
-                    <?php endif; ?>
+                <?php // TODO: Finish implementing $column->renderTitle() and manage current sorted column and current sort in Column class ?>
+                <?php foreach($this->columns as $column) : ?>
+                    <th><?= $column->renderTitle() ?></th>
                 <?php endforeach; ?>
                 <?php foreach($this->commands as $command) : ?>
                     <th>&nbsp;</th>

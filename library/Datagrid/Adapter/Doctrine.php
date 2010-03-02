@@ -55,43 +55,72 @@ class Datagrid_Adapter_Doctrine implements Datagrid_Adapter_Interface
         return $this->_table->hasRelation($relationName);
     }
 
-    public function prepare()
+    public function prepare(array $columns, array $relations)
     {
-        $this->_query = $this->_table->createQuery($this->_tableAlias);
+        $this->_query = $this->_table->createQuery($this->getTableAlias());
         $this->_query->setHydrationMode(Doctrine::HYDRATE_ARRAY);
-    }
 
-    public function selectColumn($column, array $relations = array())
-    {
-
-    }
-
-    public function sort($column, $order, array $relations = array())
-    {
-        if(!empty($this->_currentSortedColumn)) {
-            $currentSortedColumn = $columns[$this->_currentSortedColumn];
-            if($currentSortedColumn->hasRelation()) {
-                $relation = $currentSortedColumn->getRelation();
-                $relation = $relation['name'];
-                $query->addOrderBy($columns[$this->_currentSortedColumn]->getOrderByClause($relations[$relation]->getAlias(), $this->_currentSort));
+        foreach($relations as $relation) {
+            $alias = $relation->getAlias();
+            //$where = $relation->getWhere();
+            if($relation->hasRelation()) {
+                $parentAlias = $relation->getRelation()->getAlias();
             }
             else {
-                $query->addOrderBy($columns[$this->_currentSortedColumn]->getOrderByClause($this->_tableAlias, $this->_currentSort));
+                $parentAlias = $this->getTableAlias();
             }
+            $this->_query->leftJoin("$parentAlias.{$relation->getName()} $alias");
+            /*if(!empty($where)){
+                $query->addWhere($where);
+            }*/
         }
     }
 
-    public function filter($column, $filter, $matchMode, array $relations = array())
+    /**
+     *
+     * @param Datagrid_Column $column
+     * @param string $order
+     * @param array $relations
+     */
+    public function sort($column, $order)
     {
-        if(!empty($filter) && $filter != Datagrid_Filter::SELECT_ALL) {
-            $where = $this->_getWhereClause($column, $filter, $matchMode, $relations);
-            if(!empty($where)) {
-                echo 'WHERE : '.$where;
-                $this->_query->addWhere($where);
-            }
+        $order = ($order == Datagrid::DESC_ORDER) ? 'desc' : 'asc';
+        if($column->hasRelation()) {
+            $relation = $column->getRelation();
+            $this->_query->addOrderBy("{$relation->getAlias()}.{$column->getName()} $order");
+        }
+        else {
+            $this->_query->addOrderBy("{$this->getTableAlias()}.{$column->getName()} $order");
         }
     }
 
+    public function filter($column, $filter, $matchMode)
+    {
+        if($column->hasRelation()) {
+            $columnLabel = "{$column->getRelation()->getAlias()}.{$column->getName()}";
+        }
+        else {
+            $columnLabel = "{$this->getTableAlias()}.{$column->getName()}";
+        }
+
+        switch($matchMode) {
+            case Datagrid_Filter::MATCH_BEGINS:
+            $where = "$columnLabel LIKE '$filter%'";
+            break;
+
+            case Datagrid_Filter::MATCH_CONTAINS:
+            $where = "$columnLabel LIKE '%$filter%'";
+            break;
+
+            default:
+            $where = "$columnLabel LIKE '$filter%'";
+        }
+        $this->_query->addWhere($where);
+    }
+
+    /**
+     * Pour mémoire ! No more used.
+     */
     protected function _getQuery(array $columns, array $relations, array $filters)
     {
         $this->_loadParams();
@@ -167,24 +196,4 @@ class Datagrid_Adapter_Doctrine implements Datagrid_Adapter_Interface
         return $this->_query->count();
     }
 
-    protected function _getWhereClause($column, $filter, $matchMode, $relation = null)
-    {
-        if(!empty($relation)) {
-            $columnLabel = "{$relation->getAlias()}.{$this->_column}";
-        }
-        else {
-            $columnLabel = "$this->_tableAlias.{$column}";
-        }
-
-        switch($matchMode) {
-            case Datagrid_Filter::MATCH_BEGINS:
-            return "$columnLabel LIKE '$filter%'";
-
-            case Datagrid_Filter::MATCH_CONTAINS:
-            return "$columnLabel LIKE '%$filter%'";
-
-            default:
-            return null;
-        }
-    }
 }

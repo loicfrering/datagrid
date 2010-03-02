@@ -6,18 +6,21 @@
  */
 class Datagrid_Column
 {
+    protected $_datagrid;
     protected $_name;
     protected $_column;
     protected $_displayedName;
     protected $_title;
     protected $_renderingTemplate;
     protected $_renderingFunction;
-    protected $_relation = array();
+    protected $_relation;
     protected $_decorator = array(
         'prepend' => '',
         'append' => '',
     );
     protected $_sortable = true;
+    protected $_sorted = false;
+    protected $_currentSortedOrder;
     protected $_groupSortedRecords = false;
 
     public function __construct($spec, $options = null)
@@ -71,6 +74,13 @@ class Datagrid_Column
                 throw new Exception("Unknown property '$key' for Column");
             }
         }
+        return $this;
+    }
+
+    public function setDatagrid($datagrid)
+    {
+        $this->_datagrid = $datagrid;
+
         return $this;
     }
     
@@ -144,9 +154,11 @@ class Datagrid_Column
         return $this->_renderingFunction;
     }
 
-    public function setRelation(array $options)
+    public function setRelation($relation)
     {
-        $relation = array(
+        $this->_relation = $relation;
+
+        /*$relation = array(
             'name' => $options['name'],
             'elementDecorator' => array('prepend' => null, 'append' => null, 'glue' => null)
         );
@@ -167,7 +179,7 @@ class Datagrid_Column
             }
         }
         
-        $this->_relation = $relation;
+        $this->_relation = $relation;*/
         
         return $this;
     }
@@ -185,7 +197,7 @@ class Datagrid_Column
     public function getRelations($relations)
     {
         if($this->hasRelation()) {
-            $relation = $relations[$this->_relation['name']];
+            $relation = $this->_relation;
             $relationsArray = array($relation->getName());
             while($relation->hasRelation()) {
                 $relation = $relation->getRelation();
@@ -231,6 +243,28 @@ class Datagrid_Column
     {
         return $this->_sortable;
     }
+
+    public function isSorted()
+    {
+        return $this->_sorted;
+    }
+
+    public function setSorted($sorted)
+    {
+        $this->_sorted = (bool) $sorted;
+        return $this;
+    }
+
+    public function getCurrentSortOrder()
+    {
+        return $this->_currentSortedOrder;
+    }
+
+    public function setCurrentSortedOrder($currentSortedOrder)
+    {
+        $this->_currentSortedOrder = $currentSortedOrder;
+        return $this;
+    }
     
     public function setGroupSortedRecords($groupSortedRecords)
     {
@@ -248,18 +282,50 @@ class Datagrid_Column
         return $this->render($record1, $relation) == $this->render($record2, $relation);
     }
 
+    // TODO: Delete thic Doctrine specific method once in the adapter
     public function getOrderByClause($classAlias, $sort)
     {
         return "$classAlias.{$this->_name} $sort";
+    }
+
+    /**
+     * TODO: implement isSorted() and getCurrentSortOrder().
+     * Set currentSortedOrder in the concerned column in Datagrid class
+     * @return string
+     */
+    public function renderTitle()
+    {
+        $view = $this->_datagrid->getView();
+        $translator = $this->_datagrid->getTranslator();
+        $params = $this->_datagrid->getParams();
+
+        if($this->isSortable()) {
+            if($this->isSorted() && $this->getCurrentSortOrder() == Datagrid::ASC_ORDER) {
+                $sort = $this->getDisplayedName() . '-' . Datagrid::DESC_ORDER;
+                $title = $translator->_(Datagrid::SORT_DESCENDING_LABEL);
+            }
+            else {
+                $sort = $this->getDisplayedName();
+                $title = $translator->_(Datagrid::SORT_ASCENDING_LABEL);
+            }
+
+            $url = $view->url(array('page' => 1, 'sort' => $sort));
+            if(!empty($params)) {
+                $url .= '?'.http_build_query($params);
+            }
+
+            return '<a href="'.$url.'" title="'.$title.'">'.$view->escape($this->getTitle()).'</a>';
+        }
+        return $view->escape($this->getTitle());
     }
     
     public function render($record, $relations = null)
     {
         if($this->hasRelation()) {
-            $relation = $relations[$this->_relation['name']];
+            $relation = $this->_relation;
 
             if($relation->hasRelation()) {
-                $relationNames = array($this->_relation['name']);
+                $relationNames = array($this->_relation->getName());
                 while($relation->hasRelation()) {
                     $relationNames[] = $relation->getRelation();
                     $relation = $relations[$relation->getRelation()];
@@ -271,7 +337,7 @@ class Datagrid_Column
                 }
             }
             else {
-                $relationRecord = $record[$this->_relation['name']];
+                $relationRecord = $record[$this->_relation->getName()];
             }
 
             return $this->_renderRelation($relationRecord, $relation->getType());
@@ -300,7 +366,7 @@ class Datagrid_Column
         if($count) {
             $out .= $this->_decorator['prepend'];
             for($i=0; $i<$count-1; $i++) {
-                $out .= $this->_relation['elementDecorator']['prepend'];
+                //$out .= $this->_relation['elementDecorator']['prepend'];
                 if(!empty($this->_renderingTemplate)) {
                     $out .= $this->_renderTemplate($relationRecord[$i], $this->_renderingTemplate);
                 }
@@ -310,9 +376,9 @@ class Datagrid_Column
                 else {
                     $out .= $relationRecord[$i][$this->_name];
                 }
-                $out .= $this->_relation['elementDecorator']['append'].$this->_relation['elementDecorator']['glue'];
+                //$out .= $this->_relation['elementDecorator']['append'].$this->_relation['elementDecorator']['glue'];
             }
-            $out .= $this->_relation['elementDecorator']['prepend'];
+            //$out .= $this->_relation['elementDecorator']['prepend'];
             if(!empty($this->_renderingTemplate)) {
                 $out .= $this->_renderTemplate($relationRecord[$i], $this->_renderingTemplate);
             }
@@ -322,7 +388,7 @@ class Datagrid_Column
             else {
                 $out .= $relationRecord[$i][$this->_name];
             }
-            $out .= $this->_relation['elementDecorator']['append'];
+            //$out .= $this->_relation['elementDecorator']['append'];
 
             $out .= $this->_decorator['append'];
         }

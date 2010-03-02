@@ -86,7 +86,8 @@ class IndexController extends Zend_Controller_Action
                  ->addColumn('age')
                  ->addColumn('job')
                  ->addColumn('number', array(
-                         'decorator' => array(
+                         'relation' => 'Phones'
+                         /*'decorator' => array(
                             'prepend' => '<ul>',
                             'append' => '</ul>'
                          ),
@@ -96,12 +97,14 @@ class IndexController extends Zend_Controller_Action
                                 'prepend' => '<li>',
                                 'append' => '</li>'
                             )
-                         )
+                         )*/
                      ))
                  ->addFilter('firstname')
                  ->addFilter('job', array(
                         'matchMode' => Datagrid_Filter::MATCH_CONTAINS
-                     ));
+                     ))
+                 ->addFilter('number', array(
+                 ));
 
         $this->view->datagrid = $datagrid;
     }

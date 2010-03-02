@@ -32,6 +32,8 @@ $frontController = Zend_Controller_Front::getInstance();
 $frontController->setControllerDirectory(APPLICATION_PATH . '/controllers');
 $frontController->throwExceptions(true);
 error_reporting(E_ALL | E_STRICT);
+ini_set('display_startup_errors', 1);
+ini_set('display_errors', 1);
 
 // Step 4: APPLICATION ENVIRONMENT - Set the current environment.
 // Set a variable in the front controller indicating the current environment --

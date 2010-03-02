@@ -40,20 +40,24 @@ class Datagrid_Adapter_Array implements Datagrid_Adapter_Interface
 
     public function filter($column, $filter, $matchMode, array $relations = array())
     {
-        if(!empty($filter) && $filter != Datagrid_Filter::SELECT_ALL) {
-            $this->_currentFilteredColumn = $column;
-            $this->_currentFilter = $filter;
-            $this->_currentFilterMatchMode = $matchMode;
-            $this->_data = array_filter($this->_data, array($this, '_filter'));
-        }
+        $this->_currentFilteredColumn = $column;
+        $this->_currentFilter = $filter;
+        $this->_currentFilterMatchMode = $matchMode;
+        $this->_data = array_filter($this->_data, array($this, '_filter'));
     }
 
+    /**
+     *
+     * @param Datagrid_column $column
+     * @param string $order
+     * @param array $relations
+     */
     public function sort($column, $order, array $relations = array())
     {
         $data = $this->_data;
         $columns = array();
         foreach ($data as $key => $row) {
-            $columns[$key]  = $row[$column];
+            $columns[$key]  = $row[$column->getName()];
         }
 
         array_multisort($columns, $order == Datagrid::DESC_ORDER ? SORT_DESC : SORT_ASC, $data);
